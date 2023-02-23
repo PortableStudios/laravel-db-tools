@@ -1,0 +1,25 @@
+{
+    "name": "portable/laravel-db-tools",
+    "description": "Database import and export for Artisan",
+    "type": "library",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Portable\\LaravelDbTools\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Kath Young",
+            "email": "kath.young@portable.com.au"
+        }
+    ],
+    "require": {},
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Portable\\LaravelDbTools\\LaravelDbToolsServiceProvider"
+            ]
+        }
+    }
+}
