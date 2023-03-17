@@ -14,7 +14,7 @@ class MysqlCli extends AbstractCliDriver
         $host = $this->connection->getConfig('host');
         $port = $this->connection->getConfig('port');
 
-        return "mysql -u{$username} -p{$password} -h{$host} -P{$port} -e \"DROP IF EXISTS DATABASE {$database};\"";
+        return "mysql -u{$username} -p{$password} -h{$host} -P{$port} -e \"DROP DATABASE IF EXISTS {$database};\"";
     }
 
     public function getCreateDbCommand()
@@ -25,7 +25,7 @@ class MysqlCli extends AbstractCliDriver
         $host = $this->connection->getConfig('host');
         $port = $this->connection->getConfig('port');
 
-        return "mysql -u{$username} -p{$password} -h{$host} -P{$port} -e \"CREATE DATABASE {$database};\"";
+        return "mysql -u{$username} -p{$password} -h{$host} -P{$port} -e \"CREATE DATABASE IF NOT EXISTS {$database};\"";
     }
 
     public function getDumpCommand($destination, $compress = false)
@@ -35,13 +35,18 @@ class MysqlCli extends AbstractCliDriver
 
         $this->verifyRequiredTools($compress);
 
-        $dumpCommand = sprintf("mysqldump -u%s -p%s -h%s -P%s %s", [
+        $dumpCommand = sprintf(
+            "mysqldump --no-tablespaces -u%s -p%s -h%s -P%s %s",
             $config['username'],
             $config['password'],
             $config['host'],
             $config['port'],
             $database,
-        ]);
+        );
+
+        if ($compress) {
+            $destination .= '.gz';
+        }
 
         if ($this->hasPV()) {
             $sql = "SELECT ROUND(SUM(data_length) / 1024 / 1024, 0) AS db_mb FROM information_schema.TABLES WHERE table_schema='"
@@ -56,6 +61,8 @@ class MysqlCli extends AbstractCliDriver
             $dumpCommand .= ' | gzip';
         }
         $dumpCommand .= ' > ' . $destination;
+
+        return $dumpCommand;
     }
 
     public function getImportCommand($source, $compressed = false)
@@ -64,28 +71,28 @@ class MysqlCli extends AbstractCliDriver
         $hasPV = $this->hasPV();
         $database = $this->connection->getDatabaseName();
         $config = $this->connection->getConfig();
-        $outputFile = $source . '.log';
 
-        $importCommand = sprintf("mysql -u%s -p%s -h%s -P%s %s", [
+        $importCommand = sprintf(
+            "mysql -u%s -p%s -h%s -P%s %s",
             $config['username'],
             $config['password'],
             $config['host'],
             $config['port'],
             $database,
-        ]);
+        );
         $command = '';
 
         if ($hasPV) {
-            $command .= 'pv ' . $outputFile . ' | ';
+            $command .= 'pv ' . $source . ' | ';
             if ($compressed) {
                 $command .= 'gunzip |';
             }
             $command .= $importCommand;
         } else {
             if ($compressed) {
-                $command .= 'gunzip < ' . $outputFile . ' | ' . $importCommand;
+                $command .= 'gunzip < ' . $source . ' | ' . $importCommand;
             } else {
-                $command = $importCommand . ' < ' . $outputFile;
+                $command = $importCommand . ' < ' . $source;
             }
         }
 
