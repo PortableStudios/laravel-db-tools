@@ -2,8 +2,6 @@
 
 namespace Portable\LaravelDbTools\Database\CliDrivers;
 
-use Symfony\Component\Process\Process;
-
 class PostgresCli extends AbstractCliDriver
 {
     public function getDropDbCommand()
@@ -113,24 +111,5 @@ class PostgresCli extends AbstractCliDriver
         }
 
         return true;
-    }
-
-    public function hasPV()
-    {
-        try {
-            $this->verifyProcess('pv');
-            return true;
-        } catch (\Exception $e) {
-            return false;
-        }
-    }
-
-    protected function verifyProcess($proc)
-    {
-        $process = new Process([$proc, "--version"]);
-        $exitCode = $process->run();
-        if ($exitCode !== 0) {
-            throw new \Exception("$proc is not installed");
-        }
     }
 }

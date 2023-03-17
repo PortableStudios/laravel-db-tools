@@ -15,7 +15,7 @@ class DbExport extends Command
      *
      * @var string
      */
-    protected $signature = 'db:export {connection?} {--command-only} {--compress}';
+    protected $signature = 'db:export {filename?} {connection?} {--command-only} {--compress}';
 
     /**
      * The console command description.
@@ -32,10 +32,10 @@ class DbExport extends Command
     public function handle()
     {
         $connection = $this->argument('connection');
+        $fileName = $this->argument('filename') ?: DB::connection($connection)->getDatabaseName() . '_export_' . date('Y-m-d-H-i-s') . '.sql';
         $cliDriver = CliFactory::make(DB::connection($connection));
         $compress = $this->option('compress');
 
-        $fileName = DB::connection($connection)->getDatabaseName() . '_export_' . date('Y-m-d-H-i-s') . '.sql';
         $command = $cliDriver->getDumpCommand($fileName, $compress);
         if ($this->option('command-only')) {
             $this->comment("Command is: $command");

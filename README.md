@@ -16,4 +16,4 @@ If compressed is specified, uses gzip and gunzip to compress data - useful if yo
 
 If you attempt to run the commands in production, issues a warning and asks for confirmation before continuing.
 
-Currently, only postgres adapters are supported. PRs for additional database drivers would be welcome.
+Currently, only postgres and mySQL adapters are supported. PRs for additional database drivers would be welcome.
