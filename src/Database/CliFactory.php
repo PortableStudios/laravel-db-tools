@@ -3,6 +3,7 @@
 namespace Portable\LaravelDbTools\Database;
 
 use Closure;
+use Portable\LaravelDbTools\Database\CliDrivers\MysqlCli;
 use Portable\LaravelDbTools\Database\CliDrivers\PostgresCli;
 use Portable\LaravelDbTools\Database\CliDrivers\TestDriver;
 
@@ -53,6 +54,8 @@ class CliFactory
         switch ($driver) {
             case 'pgsql':
                 return new PostgresCli($connection);
+            case 'mysql':
+                return new MysqlCli($connection);
         }
 
         throw new \Exception("Unsupported driver [{$driver}].");

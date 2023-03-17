@@ -2,7 +2,9 @@
 
 namespace Portable\LaravelDbTools\Database\CliDrivers;
 
-class PostgresCli extends AbstractCliDriver
+use Illuminate\Support\Facades\DB;
+
+class MysqlCli extends AbstractCliDriver
 {
     public function getDropDbCommand()
     {
@@ -12,7 +14,7 @@ class PostgresCli extends AbstractCliDriver
         $host = $this->connection->getConfig('host');
         $port = $this->connection->getConfig('port');
 
-        return "PGPASSWORD={$password} dropdb --if-exists --username={$username} --host={$host} --port={$port} {$database}";
+        return "mysql -u{$username} -p{$password} -h{$host} -P{$port} -e \"DROP IF EXISTS DATABASE {$database};\"";
     }
 
     public function getCreateDbCommand()
@@ -23,84 +25,76 @@ class PostgresCli extends AbstractCliDriver
         $host = $this->connection->getConfig('host');
         $port = $this->connection->getConfig('port');
 
-        return "PGPASSWORD={$password} createdb --username={$username} --host={$host} --port={$port} {$database}";
+        return "mysql -u{$username} -p{$password} -h{$host} -P{$port} -e \"CREATE DATABASE {$database};\"";
     }
 
     public function getDumpCommand($destination, $compress = false)
     {
         $config = $this->connection->getConfig();
-        $this->verifyRequiredTools($compress);
-
         $database = $this->connection->getDatabaseName();
 
-        $sprintString = 'PGPASSWORD=%s pg_dump -U %s -h %s -p %s %s';
+        $this->verifyRequiredTools($compress);
 
-        if ($this->hasPV()) {
-            $pSQLCmd = "PGPASSWORD=%s psql -U %s -h %s -p %s %s -tc \"SELECT pg_database_size('$database')\"";
-            $pSQLCmd = sprintf($pSQLCmd, $config['password'], $config['username'], $config['host'], $config['port'], $database);
-
-            $sprintString .= ' | pv -c -s $(' . $pSQLCmd . ') -N dump';
-        }
-
-        if ($compress) {
-            $sprintString .= ' | gzip';
-        }
-        $sprintString .= ' > %s';
-
-        return sprintf(
-            $sprintString,
-            $config['password'],
+        $dumpCommand = sprintf("mysqldump -u%s -p%s -h%s -P%s %s", [
             $config['username'],
+            $config['password'],
             $config['host'],
             $config['port'],
             $database,
-            $destination
-        );
+        ]);
+
+        if ($this->hasPV()) {
+            $sql = "SELECT ROUND(SUM(data_length) / 1024 / 1024, 0) AS db_mb FROM information_schema.TABLES WHERE table_schema='"
+                . DB::Connection()->getDatabaseName() . "'";
+
+            $size = DB::select(DB::raw($sql))[0]->db_mb;
+
+            $dumpCommand  .= " | pv --progress --size {$size}m ";
+        }
+
+        if ($compress) {
+            $dumpCommand .= ' | gzip';
+        }
+        $dumpCommand .= ' > ' . $destination;
     }
 
     public function getImportCommand($source, $compressed = false)
     {
         $this->verifyRequiredTools($compressed);
-
         $hasPV = $this->hasPV();
-
         $database = $this->connection->getDatabaseName();
         $config = $this->connection->getConfig();
         $outputFile = $source . '.log';
 
-        $sprintString = "";
-        $pSQL = 'PGPASSWORD=%s psql -U %s -h %s -p %s %s -o=%s -q -v ON_ERROR_STOP=1';
-
-        if ($hasPV) {
-            $sprintString .= 'pv %s | ';
-            if ($compressed) {
-                $sprintString .= 'gunzip |';
-            }
-            $sprintString .= $pSQL;
-        } else {
-            if ($compressed) {
-                $sprintString .= 'gunzip < %s | ' . $pSQL;
-            } else {
-                $sprintString .= 'cat %s | ' . $pSQL;
-            }
-        }
-
-
-        return sprintf(
-            $sprintString,
-            $source,
-            $config['password'],
+        $importCommand = sprintf("mysql -u%s -p%s -h%s -P%s %s", [
             $config['username'],
+            $config['password'],
             $config['host'],
             $config['port'],
             $database,
-            $outputFile
-        );
+        ]);
+        $command = '';
+
+        if ($hasPV) {
+            $command .= 'pv ' . $outputFile . ' | ';
+            if ($compressed) {
+                $command .= 'gunzip |';
+            }
+            $command .= $importCommand;
+        } else {
+            if ($compressed) {
+                $command .= 'gunzip < ' . $outputFile . ' | ' . $importCommand;
+            } else {
+                $command = $importCommand . ' < ' . $outputFile;
+            }
+        }
+
+        return $command;
     }
 
     public function verifyRequiredTools($compression = false)
     {
-        $procs = ['psql', 'pg_dump', 'createdb', 'dropdb'];
+        $procs = ['mysql', 'mysqldump'];
         if ($compression) {
             $procs[] = 'gzip';
             $procs[] = 'gunzip';
